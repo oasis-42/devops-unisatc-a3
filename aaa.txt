@@ -1,0 +1,113 @@
+APP_KEYS=myKeyA,myKeyB
+
+$ node -e "console.log(require('crypto').randomBytes(16).toString('base64'))"
+
+----// executando vei gerar a key e colocamos no .env
+
+APP_KEYS=supersecretkey123,anotherkey456
+JWT_SECRET=ZQtqe/DKYR/7DD+srAIUHg==
+API_TOKEN_SALT=0Ovl5R4BSSxXrKigzx3btw==
+
+
+----// após isso:
+
+npm run develop
+
+---//
+
+npx playwright install
+npx playwright codegen http://localhost:1337/admin
+
+---// para realizar os testes:
+
+npm install --save-dev @playwright/test
+npx playwright install
+
+e fazer funcionar...
+
+---// após isso, criar arquivos docker:
+
+arquivo dockerfile:
+
+# Usa a imagem oficial do Node.js
+FROM node:18
+
+# Define o diretório de trabalho dentro do container
+WORKDIR /app
+
+# Copia os arquivos de dependência
+COPY package*.json ./
+
+# Instala as dependências
+RUN npm install
+
+# Copia o restante da aplicação
+COPY . .
+
+# Expõe a porta padrão do Strapi
+EXPOSE 1337
+
+# Comando para iniciar o Strapi em modo produção
+CMD ["npm", "run", "develop"]
+
+--//
+
+.dockerignore:
+
+node_modules
+.build
+.tmp
+.env
+
+
+-----------------// agora garantir que o .env com config para o docker funcionar:
+
+APP_KEYS=algumaChave1,algumaChave2
+API_TOKEN_SALT=gerado_com_crypto
+JWT_SECRET=outraChaveSecreta
+HOST=0.0.0.0
+PORT=1337
+
+
+----------------// construir imagem:
+
+docker build -t meu-strapi-a3 .
+
+
+----------------// rodar container:
+
+docker run -it --rm -p 1337:1337 -v $(pwd)/.tmp:/app/.tmp --env-file .env meu-strapi-a3
+
+----------------// verificar fazendo login e testando:
+
+http://localhost:1337/admin
+
+--/ rodar esse comando tmb:
+
+docker build -t meu-strapi .
+docker run -p 1337:1337 meu-strapi
+
+
+----------------// GitHub Actions (CI/CD):
+
+configurar o .github/workflows/test.yml e .github/workflows/docker.yml
+
+----------------// Terraform + Cloud Deploy:
+
+
+ Configure arquivos Terraform na pasta terraform/
+
+ Use:
+
+aws_ecs_cluster
+
+aws_ecs_task_definition
+
+aws_ecs_service
+
+aws_ecr_repository se quiser usar ECR em vez do DockerHub
+
+aws_vpc, aws_security_group, etc.
+
+
+--//
