@@ -17,7 +17,198 @@ provider "aws" {
   region = "us-east-1"
 }
 
-module "test_devops" {
-  source = "./resources"
+resource "aws_vpc" "this" {
+  cidr_block           = var.vpc_cidr
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = { Name = "app-vpc" }
 }
 
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.this.id
+  tags   = { Name = "app-igw" }
+}
+
+data "aws_availability_zones" "azs" {}
+
+resource "aws_subnet" "public" {
+  for_each                = toset(var.public_subnet_cidrs)
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = each.value
+  map_public_ip_on_launch = true
+  availability_zone       = data.aws_availability_zones.azs.names[lookup([0,1], length([for c in var.public_subnet_cidrs if c == each.value]), 0)]
+  tags = { Name = "public-${each.value}" }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.this.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+resource "aws_route_table_association" "public" {
+  for_each       = aws_subnet.public
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_security_group" "alb_sg" {
+  name        = "alb-sg"
+  description = "Allow HTTP from anywhere"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "ecs_sg" {
+  name        = "ecs-sg"
+  description = "Allow container traffic from ALB"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    from_port       = var.container_port
+    to_port         = var.container_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_ecr_repository" "app" {
+  name                 = replace(var.service_name, "/", "-")
+  image_tag_mutability = "MUTABLE"
+  encryption_configuration { encryption_type = "AES256" }
+}
+
+resource "aws_ecs_cluster" "this" {
+  name = var.cluster_name
+}
+
+data "aws_iam_policy_document" "ecs_task_assume" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "task_exec" {
+  name               = "ecsTaskExecutionRole"
+  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "exec_attach" {
+  role       = aws_iam_role.task_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_lb" "alb" {
+  name            = "${var.service_name}-alb"
+  internal        = false
+  security_groups = [aws_security_group.alb_sg.id]
+  subnets         = values(aws_subnet.public)[*].id
+}
+
+resource "aws_lb_target_group" "tg" {
+  name     = "${var.service_name}-tg"
+  port     = var.container_port
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.this.id
+
+  health_check {
+    path                = "/health"
+    matcher             = "200"
+    interval            = 30
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg.arn
+  }
+}
+
+resource "aws_ecs_task_definition" "app" {
+  family                   = var.service_name
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = aws_iam_role.task_exec.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = var.service_name
+      image     = "${aws_ecr_repository.app.repository_url}:latest"
+      portMappings = [
+        { containerPort = var.container_port, protocol = "tcp" }
+      ]
+      environment = [
+        for key, val in var.env_vars : {
+          name  = key
+          value = val
+        }
+      ]
+      essential = true
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost:${var.container_port}/health || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 2
+        startPeriod = 10
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_service" "app" {
+  name            = var.service_name
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.app.arn
+  desired_count   = 2
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = values(aws_subnet.public)[*].id
+    security_groups = [aws_security_group.ecs_sg.id]
+    assign_public_ip = true
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.tg.arn
+    container_name   = var.service_name
+    container_port   = var.container_port
+  }
+
+  depends_on = [aws_lb_listener.http]
+}

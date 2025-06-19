@@ -12,6 +12,16 @@ jobs:
     defaults:
       run:
         working-directory: terraform
+    env:
+      TF_VAR_env_vars_PORT: ${{ secrets.PORT }}
+      TF_VAR_env_vars_APP_KEYS: ${{ secrets.APP_KEYS }}
+      TF_VAR_env_vars_API_TOKEN_SALT: ${{ secrets.API_TOKEN_SALT }}
+      TF_VAR_env_vars_ADMIN_JWT_SECRET: ${{ secrets.ADMIN_JWT_SECRET }}
+      TF_VAR_env_vars_TRANSFER_TOKEN_SALT: ${{ secrets.TRANSFER_TOKEN_SALT }}
+      TF_VAR_env_vars_DATABASE_CLIENT: ${{ secrets.DATABASE_CLIENT }}
+      TF_VAR_env_vars_DATABASE_SSL: ${{ secrets.DATABASE_SSL }}
+      TF_VAR_env_vars_DATABASE_FILENAME: ${{ secrets.DATABASE_FILENAME }}
+      TF_VAR_env_vars_JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
       - name: Checkout repo
