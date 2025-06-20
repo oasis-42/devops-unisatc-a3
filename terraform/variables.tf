@@ -37,5 +37,5 @@ variable "container_port" {
 variable "env_vars" {
   description = "Map of environment variables to set in the ECS container"
   type        = map(string)
-  default     = {}
+  default     = { HOST = "0.0.0.0" }
 }

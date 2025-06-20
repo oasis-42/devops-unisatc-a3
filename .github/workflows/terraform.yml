@@ -1,9 +1,10 @@
 name: Terraform Apply
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: ["Run Tests"]
+    types:
+      - completed
 
 jobs:
   terraform:
@@ -22,6 +23,7 @@ jobs:
       TF_VAR_env_vars_DATABASE_SSL: ${{ secrets.DATABASE_SSL }}
       TF_VAR_env_vars_DATABASE_FILENAME: ${{ secrets.DATABASE_FILENAME }}
       TF_VAR_env_vars_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      TF_VAR_env_vars_HOST: ${{ secrets.HOST }}
 
     steps:
       - name: Checkout repo

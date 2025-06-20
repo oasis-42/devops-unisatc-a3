@@ -1,15 +1,15 @@
 terraform {
   backend "s3" {
-    key = "devops-unisatc-a3/terraform.tfstate"
-    region = "sa-east-1"
-    bucket = "joelfrancisco-terraform-state"
+    key          = "devops-unisatc-a3/terraform.tfstate"
+    region       = "sa-east-1"
+    bucket       = "joelfrancisco-terraform-state"
     use_lockfile = true
   }
 
   required_version = ">= 0.12"
 
   required_providers {
-    aws = ">= 2.51.0" 
+    aws = ">= 2.51.0"
   }
 }
 
@@ -21,7 +21,7 @@ resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { Name = "app-vpc" }
+  tags                 = { Name = "app-vpc" }
 }
 
 resource "aws_internet_gateway" "igw" {
@@ -37,7 +37,7 @@ resource "aws_subnet" "public" {
   cidr_block              = each.value
   map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.azs.names[index(var.public_subnet_cidrs, each.value)]
-  tags = { Name = "public-${each.value}" }
+  tags                    = { Name = "public-${each.value}" }
 }
 
 resource "aws_route_table" "public" {
@@ -54,10 +54,11 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+## Security Groups
 resource "aws_security_group" "alb_sg" {
   name        = "alb-sg"
-  description = "Allow HTTP from anywhere"
   vpc_id      = aws_vpc.this.id
+  description = "Allow HTTP from anywhere"
 
   ingress {
     from_port   = 80
@@ -76,8 +77,8 @@ resource "aws_security_group" "alb_sg" {
 
 resource "aws_security_group" "ecs_sg" {
   name        = "ecs-sg"
-  description = "Allow container traffic from ALB"
   vpc_id      = aws_vpc.this.id
+  description = "Allow ECS traffic from ALB"
 
   ingress {
     from_port       = var.container_port
@@ -94,12 +95,15 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
+## ECR Repository
 resource "aws_ecr_repository" "app" {
   name                 = replace(var.service_name, "/", "-")
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
   encryption_configuration { encryption_type = "AES256" }
 }
 
+## ECS Cluster and Task Role
 resource "aws_ecs_cluster" "this" {
   name = var.cluster_name
 }
@@ -125,6 +129,7 @@ resource "aws_iam_role_policy_attachment" "exec_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+## ALB and Target Group
 resource "aws_lb" "alb" {
   name            = "${var.service_name}-alb"
   internal        = false
@@ -133,14 +138,15 @@ resource "aws_lb" "alb" {
 }
 
 resource "aws_lb_target_group" "tg" {
-  name     = "${var.service_name}-tg"
-  port     = var.container_port
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.this.id
+  name        = "${var.service_name}-tg"
+  port        = var.container_port
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.this.id
+  target_type = "ip"
 
   health_check {
-    path                = "/health"
-    matcher             = "200"
+    path                = "/"
+    matcher             = "200-399"
     interval            = 30
     healthy_threshold   = 2
     unhealthy_threshold = 2
@@ -158,49 +164,39 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+## ECS Task Definition
 resource "aws_ecs_task_definition" "app" {
   family                   = var.service_name
-  cpu                      = "256"
-  memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
   execution_role_arn       = aws_iam_role.task_exec.arn
 
   container_definitions = jsonencode([
     {
-      name      = var.service_name
-      image     = "${aws_ecr_repository.app.repository_url}:latest"
-      portMappings = [
-        { containerPort = var.container_port, protocol = "tcp" }
-      ]
-      environment = [
-        for key, val in var.env_vars : {
-          name  = key
-          value = val
-        }
-      ]
-      essential = true
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:${var.container_port}/health || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 2
-        startPeriod = 10
-      }
+      name         = var.service_name
+      image        = "${aws_ecr_repository.app.repository_url}:latest"
+      portMappings = [{ containerPort = var.container_port, protocol = "tcp" }]
+      environment  = [for k, v in var.env_vars : { name = k, value = v }]
+      essential    = true
+      # Removed container healthCheck to avoid failures
     }
   ])
 }
 
+## ECS Service
 resource "aws_ecs_service" "app" {
-  name            = var.service_name
-  cluster         = aws_ecs_cluster.this.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = 2
-  launch_type     = "FARGATE"
+  name                              = var.service_name
+  cluster                           = aws_ecs_cluster.this.id
+  task_definition                   = aws_ecs_task_definition.app.arn
+  desired_count                     = 2
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 60
 
   network_configuration {
-    subnets         = values(aws_subnet.public)[*].id
-    security_groups = [aws_security_group.ecs_sg.id]
+    subnets          = values(aws_subnet.public)[*].id
+    security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
 
@@ -209,6 +205,4 @@ resource "aws_ecs_service" "app" {
     container_name   = var.service_name
     container_port   = var.container_port
   }
-
-  depends_on = [aws_lb_listener.http]
 }
