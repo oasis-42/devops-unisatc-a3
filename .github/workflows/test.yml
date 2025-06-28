@@ -24,23 +24,6 @@ jobs:
 
       - run: npx playwright install --with-deps
 
-      - run: |
-        echo "HOST=0.0.0.0" >> .env
-        echo "PORT=1337" >> .env
-        echo "APP_KEYS=ImJMpHjnCdJw4ii7jZzCXQ==,Jg239VoMach6Fh2LAH6ydA==,LAdmPTwE8oqyVjAV4pCkBQ==,f1gPGngKmE5xhyDktSpCVw==" >> .env
-        echo "API_TOKEN_SALT=X2d0C6rgXwWgwEZCslZN0A==" >> .env
-        echo "ADMIN_JWT_SECRET=deEi8rGl7WB43uXiaYPaOg==" >> .env
-        echo "TRANSFER_TOKEN_SALT=vhsZEWfU3anLONbLZXZfqg==" >> .env
-        echo "DATABASE_CLIENT=sqlite" >> .env
-        echo "DATABASE_FILENAME=.tmp/data.db" >> .env
-        echo "DATABASE_SSL=false" >> .env
-        echo "JWT_SECRET=U2Nh9O8oDdw6gzXqWbg5Eg==" >> .env
-
-      - name: Start API server
-        run: npm run develop &
-        shell: bash
-
-      
       - name: Write .env file
         run: |
           cat <<EOF > .env
