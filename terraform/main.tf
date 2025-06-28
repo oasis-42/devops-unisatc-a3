@@ -21,24 +21,25 @@ resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags                 = { Name = "app-vpc" }
 }
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.this.id
-  tags   = { Name = "app-igw" }
 }
 
 data "aws_availability_zones" "azs" {}
 
 resource "aws_subnet" "public" {
-  count = 2
+  for_each               = toset(var.public_subnet_cidrs)
   map_public_ip_on_launch = true
   vpc_id                  = aws_vpc.this.id
-  cidr_block              = "10.0.${count.index + 1}.0/24"
-  availability_zone       = data.aws_availability_zones.azs.names[index(var.public_subnet_cidrs, each.value)]
-  tags                    = { Name = "public-${each.value}" }
+
+  cidr_block        = each.key
+  availability_zone = data.aws_availability_zones.azs.names[
+                         index(var.public_subnet_cidrs, each.key)
+                       ]
 }
+
 
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
@@ -167,6 +168,20 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+variable "log_retention_days" {
+  description = "Number of days to keep CloudWatch logs"
+  type        = number
+  default     = 7
+}
+
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/ecs/${var.service_name}"
+  retention_in_days = var.log_retention_days
+  tags = {
+    Service     = var.service_name
+  }
+}
+
 ## ECS Task Definition
 resource "aws_ecs_task_definition" "app" {
   family                   = var.service_name
@@ -231,3 +246,4 @@ resource "aws_ecs_service" "app" {
     container_port   = var.container_port
   }
 }
+

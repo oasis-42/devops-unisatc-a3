@@ -1,11 +1,8 @@
 name: Terraform Apply
 
 on:
-  push:
-    branches:
-      - master
   workflow_run:
-    workflows: ["Run Tests"]
+    workflows: ["Build and Push Docker Image"]
     types:
       - completed
 
