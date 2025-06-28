@@ -34,8 +34,27 @@ variable "container_port" {
   default     = 1337
 }
 
-variable "env_vars" {
-  description = "Map of environment variables to set in the ECS container"
-  type        = map(string)
-  default     = { HOST = "0.0.0.0" }
+variable "app_keys" {
+  description = "APP_KEYS"
+  type = string
+}
+
+variable "api_token_salt" {
+  description = "API_TOKEN_SALT"
+  type = string
+}
+
+variable "admin_jwt_secret" {
+  description = "ADMIN_JWT_SECRET"
+  type = string
+}
+
+variable "transfer_token_salt" {
+  description = "TRANSFER_TOKEN_SALT"
+  type = string
+}
+
+variable "jwt_secret" {
+  description = "JWT_SECRET"
+  type = string
 }

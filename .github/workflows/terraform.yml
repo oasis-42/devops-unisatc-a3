@@ -1,6 +1,9 @@
 name: Terraform Apply
 
 on:
+  push:
+    branches:
+      - master
   workflow_run:
     workflows: ["Run Tests"]
     types:
