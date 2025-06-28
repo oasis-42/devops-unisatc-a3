@@ -40,8 +40,27 @@ jobs:
         run: npm run develop &
         shell: bash
 
-      - name: Wait for API to be ready
-        run: npx wait-on http://localhost:1337
+      
+      - name: Write .env file
+        run: |
+          cat <<EOF > .env
+          HOST=0.0.0.0
+          PORT=1337
+          APP_KEYS=ImJMpHjnCdJw4ii7jZzCXQ==,Jg239VoMach6Fh2LAH6ydA==,LAdmPTwE8oqyVjAV4pCkBQ==,f1gPGngKmE5xhyDktSpCVw==
+          API_TOKEN_SALT=X2d0C6rgXwWgwEZCslZN0A==
+          ADMIN_JWT_SECRET=deEi8rGl7WB43uXiaYPaOg==
+          TRANSFER_TOKEN_SALT=vhsZEWfU3anLONbLZXZfqg==
+          DATABASE_CLIENT=sqlite
+          DATABASE_FILENAME=.tmp/data.db
+          DATABASE_SSL=false
+          JWT_SECRET=U2Nh9O8oDdw6gzXqWbg5Eg==
+          EOF
+
+      - name: Start Strapi and wait
+        shell: bash
+        run: |
+          npm run develop &                
+          npx wait-on http://localhost:1337  
 
       - name: Run Playwright Tests
         run: npx playwright test
