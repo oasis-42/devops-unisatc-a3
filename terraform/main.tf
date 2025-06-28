@@ -34,10 +34,8 @@ data "aws_availability_zones" "azs" {}
 resource "aws_subnet" "public" {
   count = 2
   map_public_ip_on_launch = true
-  for_each                = toset(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.this.id
   cidr_block              = "10.0.${count.index + 1}.0/24"
-  map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.azs.names[index(var.public_subnet_cidrs, each.value)]
   tags                    = { Name = "public-${each.value}" }
 }
@@ -155,8 +153,6 @@ resource "aws_lb_target_group" "tg" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
     port                = "traffic-port"
-    healthy_threshold   = 2
-    interval            = 30
   }
 }
 
