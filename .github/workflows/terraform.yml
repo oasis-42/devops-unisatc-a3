@@ -17,16 +17,16 @@ jobs:
       run:
         working-directory: terraform
     env:
-      TF_VAR_env_vars_PORT: ${{ secrets.PORT }}
-      TF_VAR_env_vars_APP_KEYS: ${{ secrets.APP_KEYS }}
-      TF_VAR_env_vars_API_TOKEN_SALT: ${{ secrets.API_TOKEN_SALT }}
-      TF_VAR_env_vars_ADMIN_JWT_SECRET: ${{ secrets.ADMIN_JWT_SECRET }}
-      TF_VAR_env_vars_TRANSFER_TOKEN_SALT: ${{ secrets.TRANSFER_TOKEN_SALT }}
-      TF_VAR_env_vars_DATABASE_CLIENT: ${{ secrets.DATABASE_CLIENT }}
-      TF_VAR_env_vars_DATABASE_SSL: ${{ secrets.DATABASE_SSL }}
-      TF_VAR_env_vars_DATABASE_FILENAME: ${{ secrets.DATABASE_FILENAME }}
-      TF_VAR_env_vars_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      TF_VAR_env_vars_HOST: ${{ secrets.HOST }}
+      TF_VAR_port: ${{ secrets.PORT }}
+      TF_VAR_app_keys: ${{ secrets.APP_KEYS }}
+      TF_VAR_api_token_salt: ${{ secrets.API_TOKEN_SALT }}
+      TF_VAR_admin_jwt_secret: ${{ secrets.ADMIN_JWT_SECRET }}
+      TF_VAR_transfer_token_salt: ${{ secrets.TRANSFER_TOKEN_SALT }}
+      TF_VAR_database_client: ${{ secrets.DATABASE_CLIENT }}
+      TF_VAR_database_ssl: ${{ secrets.DATABASE_SSL }}
+      TF_VAR_database_filename: ${{ secrets.DATABASE_FILENAME }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_host: ${{ secrets.HOST }}
 
     steps:
       - name: Checkout repo
