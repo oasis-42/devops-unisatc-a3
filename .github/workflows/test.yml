@@ -39,11 +39,11 @@ jobs:
           JWT_SECRET=U2Nh9O8oDdw6gzXqWbg5Eg==
           EOF
 
-      - name: Start Strapi and wait
+      - name: Start Strapi & wait for port
         shell: bash
         run: |
-          npm run develop &                
-          npx wait-on http://localhost:1337  
+          npm run develop &              
+          npx wait-on tcp:1337
 
       - name: Run Playwright Tests
         run: npx playwright test
